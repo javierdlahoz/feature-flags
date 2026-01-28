@@ -1,0 +1,72 @@
+services:
+  app:
+    image: app-image
+    build: .
+    container_name: app-feature-flag
+    stdin_open: true
+    working_dir: /var/www/app/
+    tty: true
+    depends_on:
+      - mysql
+      - redis
+    ports:
+        - "8000:8000"
+    volumes:
+      - ./:/var/www/app/
+    command: >
+      bash -c "
+        php artisan db:wipe --
+        php artisan migrate --force --
+        php artisan db:seed --force --
+        php artisan serve --host=0.0.0.0 --port=8000
+      "
+
+  redis:
+    image: redis:6.0-alpine
+    container_name: app-redis
+    hostname: app-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  # Needs to create the DB automatically on startup
+  mysql:
+    image: mysql:9.5.0
+    container_name: app-mysql
+    hostname: app-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: feature
+      MYSQL_USER: app_user
+      MYSQL_PASSWORD: app_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - app-data:/var/lib/mysql
+
+  frontend:
+    image: node:24-alpine
+    container_name: app-frontend
+    working_dir: /usr/src/app
+    stdin_open: true
+    tty: true
+    depends_on:
+      - app
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/usr/src/app
+    command: >
+      sh -c "
+        npm install &&
+        npm run dev
+      "
+
+volumes:
+  app-data:
+
+networks:
+  default:
+    name: app_local
+    external: false
